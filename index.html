@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Smart Farm - Central Live Monitor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin crossOrigin="">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-main: #04060f;
+            --card-bg: rgba(17, 24, 39, 0.75);
+            --border-color: rgba(31, 41, 61, 0.7);
+            --text-main: #f8fafc;
+            --text-sub: #4b5563;
+            --neon-cyan: #00f2fe;
+            --neon-red: #ff2a5f;
+            --neon-green: #05ff9b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            padding: 4rem 2rem;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* 🌌 ฉากหลังที่มีละออง/วัตถุลอย (Background Particles & Grid) */
+        .space-bg {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0; overflow: hidden;
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(0, 242, 254, 0.04) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(5, 255, 155, 0.04) 0%, transparent 40%);
+        }
+
+        .space-bg::before {
+            content: ''; position: absolute; width: 200%; height: 200%;
+            top: -50%; left: -50%;
+            background-image: 
+                radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px),
+                radial-gradient(rgba(0, 242, 254, 0.1) 1.5px, transparent 1.5px);
+            background-size: 80px 80px, 160px 160px;
+            background-position: 0 0, 40px 40px;
+            animation: floatingBackground 60s linear infinite;
+        }
+
+        .container { width: 100%; max-width: 1200px; display: flex; flex-direction: column; position: relative; z-index: 1; }
+
+        header {
+            margin-bottom: 3.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 2rem;
+            animation: fadeIn 1s ease-out;
+            backdrop-filter: blur(4px);
+        }
+
+        h1 { 
+            font-size: 2.4rem; font-weight: 800; letter-spacing: -0.02em; 
+            text-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
+        }
+
+        .last-update { 
+            font-family: 'JetBrains Mono', monospace; font-size: 1rem; 
+            color: var(--neon-cyan); background: rgba(9, 13, 22, 0.6); padding: 0.8rem 1.6rem; 
+            border-radius: 8px; border: 1px solid rgba(0, 242, 254, 0.2);
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.1);
+        }
+
+        .section-title {
+            font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 700;
+            color: #9ca3af; margin: 3rem 0 1.5rem 0; text-transform: uppercase;
+            letter-spacing: 0.15em; display: flex; align-items: center; gap: 1rem;
+        }
+
+        .section-title::after { content: ""; flex: 1; height: 1px; background: var(--border-color); }
+
+        .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 2rem; }
+
+        /* Card Design & Animation */
+        .card {
+            background: var(--card-bg); border: 1px solid var(--border-color);
+            border-radius: 20px; padding: 2.5rem; display: flex;
+            flex-direction: column; justify-content: space-between; 
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(12px);
+            animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .card:hover {
+            border-color: rgba(248, 250, 252, 0.2);
+            transform: translateY(-6px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 1px 1px rgba(248, 250, 252, 0.1) inset;
+        }
+
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+
+        .device-icon {
+            width: 56px; height: 56px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            background-color: rgba(9, 13, 22, 0.6); font-size: 1.6rem; border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        /* 🟢 แอนิเมชันชีพจรเรืองแสง */
+        .status-dot {
+            width: 14px; height: 14px; border-radius: 50%;
+            background-color: #374151;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .card.is-led-on .status-dot {
+            background-color: var(--neon-green);
+            box-shadow: 0 0 10px var(--neon-green), 0 0 20px var(--neon-green);
+        }
+
+        .card.is-led-on .status-dot::after {
+            content: ''; position: absolute;
+            top: -6px; left: -6px; right: -6px; bottom: -6px;
+            border-radius: 50%; border: 2px solid var(--neon-green);
+            animation: pulseGlow 2s infinite ease-out; opacity: 0;
+        }
+        
+        .card.is-led-on {
+            border-color: rgba(5, 255, 155, 0.35);
+            box-shadow: inset 0 0 20px rgba(5, 255, 155, 0.03), 0 10px 30px rgba(5, 255, 155, 0.05);
+        }
+
+        .device-name { font-size: 1.6rem; font-weight: 800; margin-bottom: 0.75rem; color: var(--text-main); }
+        .device-info { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; color: #9ca3af; display: flex; gap: 0.75rem; font-weight: 700;}
+
+        .status-badge { font-family: 'JetBrains Mono', monospace; padding: 0.4rem 1rem; border-radius: 6px; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; }
+
+        /* Keyframes คลังแสงอนิเมชัน */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulseGlow { 0% { transform: scale(0.6); opacity: 0.8; } 100% { transform: scale(1.8); opacity: 0; } }
+        
+        /* 🛰️ แอนิเมชันของวัตถุฉากหลังลอยเอียงขึ้น */
+        @keyframes floatingBackground {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(-40px, -80px); }
+        }
+
+        .loading { text-align: center; color: #4b5563; padding: 4rem; grid-column: 1 / -1; font-family: 'JetBrains Mono', monospace; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+
+    <div class="space-bg"></div>
+
+    <div class="container">
+        <header>
+            <div>
+                <h1>MAIN CONTROL CORE</h1>
+            </div>
+            <div class="last-update" id="last-update">CONNECTING CENTRAL CORE...</div>
+        </header>
+
+        <div>
+            <div class="section-title">⚡ ACTUATOR CHANNELS</div>
+            <div class="cards-grid" id="controls-grid">
+                <div class="loading">LOADING SYSTEM MODULES...</div>
+            </div>
+        </div>
+
+        <div>
+            <div class="section-title">📊 TELEMETRY SENSORS</div>
+            <div class="cards-grid" id="sensors-grid">
+                <div class="loading">FETCHING TELEMETRY DATA...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "/api/proxy";
+
+        // ☄️ ฟังก์ชันสังเคราะห์เสียงดาวตกพุ่ง (Sci-Fi Meteor Whoosh) ด้วย Web Audio API
+        function playMeteorSound() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+                
+                // ตั้งค่ารูปแบบคลื่นเสียงนุ่มนวลคล้ายลมพัด
+                osc.type = 'triangle';
+                
+                // สุ่มทิศทางเสียงเริ่มต้นและสิ้นสุด (เสียงพุ่งจากซ้ายไปขวา หรือขวาไปซ้าย)
+                const startPan = Math.random() > 0.5 ? -1 : 1;
+                const endPan = startPan * -1;
+                
+                const duration = 1.2 + Math.random() * 0.8; // ความยาวเสียง 1.2 - 2 วินาที
+                const now = ctx.currentTime;
+                
+                // แอนิเมชันความถี่เสียงดิ่งลงเหมือนวัตถุวิ่งผ่านไป (Doppler Effect)
+                osc.frequency.setValueAtTime(400 + Math.random() * 200, now);
+                osc.frequency.exponentialRampToValueAtTime(80, now + duration);
+                
+                // แอนิเมชันเสียงค่อยๆ ดังขึ้นแล้วฟึ่บดับลงอย่างนุ่มนวล
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.08, now + (duration * 0.2)); // ลิมิตความดังไม่ให้หนวกหูเกินไป (8%)
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+                
+                // เชื่อมต่อ Node เข้าด้วยกัน
+                if (panner) {
+                    panner.pan.setValueAtTime(startPan, now);
+                    panner.pan.linearRampToValueAtTime(endPan, now + duration);
+                    osc.connect(panner);
+                    panner.connect(gain);
+                } else {
+                    osc.connect(gain);
+                }
+                
+                gain.connect(ctx.destination);
+                
+                osc.start(now);
+                osc.stop(now + duration);
+            } catch (e) {
+                console.log("Audio play blocked. Wait for user interaction.");
+            }
+        }
+
+        // วงจรรอบการสุ่มปล่อยดาวตก (ทุกๆ 6 ถึง 15 วินาที)
+        function triggerRandomMeteor() {
+            playMeteorSound();
+            const nextTime = (6 + Math.random() * 9) * 1000;
+            setTimeout(triggerRandomMeteor, nextTime);
+        }
+
+        // เริ่มระบบเสียงหลังหน้าเว็บโหลดเสร็จ และเริ่มทำงานเมื่อมีการคลิกหน้าจอครั้งแรก (เพื่อป้องกันนโยบายเบราว์เซอร์บล็อกเสียง)
+        window.addEventListener('click', () => {
+            // ปลุกเสียงให้ทำงานทันทีหลังคลิก
+            playMeteorSound();
+        }, { once: true });
+
+        // เริ่มลูปสุ่มเสียงดาวตก
+        setTimeout(triggerRandomMeteor, 5000);
+
+        async function fetchDashboardData() {
+            try {
+                const response = await fetch(API_URL, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const json = await response.json();
+                if (json.success && json.data) {
+                    renderDashboard(json.data);
+                    const now = new Date();
+                    document.getElementById('last-update').innerText = `SYS_UPTIME: ${now.toLocaleTimeString()}`;
+                } else {
+                    throw new Error('Invalid API payload');
+                }
+            } catch (error) {
+                console.error("API Error:", error);
+                document.getElementById('last-update').innerText = 'DATA LINK LOST';
+                document.getElementById('controls-grid').innerHTML = '<div class="loading">API CONNECTION FAILED</div>';
+                document.getElementById('sensors-grid').innerHTML = '<div class="loading">CHECK VERCEL PROXY ROUTE</div>';
+            }
+        }
+
+        function renderDashboard(devices) {
+            const controlsGrid = document.getElementById('controls-grid');
+            const sensorsGrid = document.getElementById('sensors-grid');
+            let controlsHTML = ''; let sensorsHTML = '';
+
+            devices.forEach((device, index) => {
+                const type = device.device_type.toUpperCase();
+                const animationDelay = `animation-delay: ${index * 0.08}s`;
+                
+                if (type === 'LED') {
+                    const isCurrentOn = device.status.toUpperCase() === 'ON';
+                    controlsHTML += `
+                        <div class="card ${isCurrentOn ? 'is-led-on' : ''}" style="${animationDelay}">
+                            <div class="card-header">
+                                <div class="device-icon" style="color: ${isCurrentOn ? 'var(--neon-green)' : 'var(--text-sub)'}; border-color: ${isCurrentOn ? 'var(--neon-green)' : 'var(--border-color)'};">${isCurrentOn ? '⚡' : '⏻'}</div>
+                                <div class="status-dot"></div>
+                            </div>
+                            <div>
+                                <div class="device-name">${device.device_name}</div>
+                                <div class="device-info">
+                                    <span>PIN: ${device.pin}</span>
+                                    <span>•</span>
+                                    <span style="font-weight:700; color:${isCurrentOn ? 'var(--neon-green)':'#4b5563'}">${device.status}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (type === 'SENSOR') {
+                    let sensorIcon = '⚛️'; let accentColor = 'var(--neon-cyan)'; 
+                    
+                    if (device.device_name.toLowerCase().includes('temp')) {
+                        sensorIcon = '☣️'; accentColor = 'var(--neon-red)';
+                    } else if (device.device_name.toLowerCase().includes('humid')) {
+                        sensorIcon = '📡'; accentColor = 'var(--neon-cyan)';
+                    } else if (device.device_name.toLowerCase().includes('soil')) {
+                        sensorIcon = '🔋'; accentColor = 'var(--neon-green)';
+                    }
+
+                    sensorsHTML += `
+                        <div class="card" style="${animationDelay}">
+                            <div class="card-header">
+                                <div class="device-icon" style="color: ${accentColor}; border-color: ${accentColor}33; background-color: ${accentColor}08;">${sensorIcon}</div>
+                                <span class="status-badge" style="color: ${accentColor}; border-color: ${accentColor}44; background-color: ${accentColor}0D; box-shadow: 0 0 10px ${accentColor}1A;">${device.status}</span>
+                            </div>
+                            <div>
+                                <div class="device-name">${device.device_name}</div>
+                                <div class="device-info">
+                                    <span>PIN: ${device.pin}</span>
+                                    <span>•</span>
+                                    <span>${device.device_type}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            
+            if(controlsHTML) controlsGrid.innerHTML = controlsHTML;
+            if(sensorsHTML) sensorsGrid.innerHTML = sensorsHTML;
+        }
+
+        fetchDashboardData();
+        setInterval(fetchDashboardData, 4000);
+    </script>
+</body>
+</html>
